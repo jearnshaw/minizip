@@ -13,17 +13,16 @@ if(NOT DEFINED CMAKE_MACOSX_RPATH)
   set(CMAKE_MACOSX_RPATH 0)
 endif()
 
+include("cmake/HunterGate.cmake")
+HunterGate(
+    URL "https://github.com/ruslo/hunter/archive/v0.14.26.tar.gz"
+    SHA1 "45ac03944db2bc7fc55dfceca42d89ec7fa1dca2"
+)
+
 project("minizip")
 
-# set cmake debug postfix to d
-set(CMAKE_DEBUG_POSTFIX "d")
-
-# Ensure correct version of zlib is referenced
-set(ZLIB_ROOT ${DEF_ZLIB_ROOT} CACHE PATH "Parent directory of zlib installation")
-find_package(ZLIB REQUIRED)
-if(ZLIB_FOUND)
-    include_directories(${ZLIB_INCLUDE_DIRS})
-endif()
+hunter_add_package(ZLIB)
+find_package(ZLIB CONFIG REQUIRED)
 
 set(MINIZIP_SRC "crypt.c"
   "ioapi.c"
@@ -57,6 +56,16 @@ endif()
 add_library(minizip ${MINIZIP_SRC} ${MINIZIP_PUBLIC_HEADERS})
 target_link_libraries(minizip ZLIB::ZLIB)
 
+target_link_libraries(minizip PUBLIC ZLIB::zlib)
+
+set(generated_dir "${CMAKE_CURRENT_BINARY_DIR}/generated")
+set(config_install_dir "lib/cmake/${PROJECT_NAME}")
+
+# Configuration
+set(project_config "${generated_dir}/${PROJECT_NAME}Config.cmake")
+set(targets_export_name "${PROJECT_NAME}Targets")
+set(namespace "${PROJECT_NAME}::")
+
 option(USE_AES "enables building of aes library" ON)
 if(USE_AES)
   set(AES_SRC 
@@ -85,42 +94,57 @@ if(USE_AES)
 
   add_library(aes ${AES_SRC} ${AES_PUBLIC_HEADERS})
 
-  add_definitions(-DHAVE_AES)
+  target_compile_definitions(aes PUBLIC "HAVE_AES")
 
-  target_link_libraries(minizip aes)
+  target_link_libraries(minizip PUBLIC aes)
 
-  install(TARGETS aes EXPORT minizip-exports
+  install(
+    TARGETS aes
+    EXPORT "${targets_export_name}"
     INCLUDES DESTINATION "include"
     RUNTIME DESTINATION  "bin"
     LIBRARY DESTINATION  "lib"
-    ARCHIVE DESTINATION  "lib")
+    ARCHIVE DESTINATION  "lib"
+  )
 
   install(FILES ${AES_PUBLIC_HEADERS}
     DESTINATION "include/minizip/aes")
 endif()
 
-install(TARGETS minizip EXPORT minizip-exports
+install(
+  TARGETS minizip
+  EXPORT "${targets_export_name}"
   INCLUDES DESTINATION "include"
   RUNTIME DESTINATION "bin"
   LIBRARY DESTINATION "lib"
-  ARCHIVE DESTINATION "lib")
+  ARCHIVE DESTINATION "lib"
+)
 
-install(EXPORT minizip-exports
-        DESTINATION "cmake"
-        NAMESPACE "MINIZIP::")
+install(EXPORT "${targets_export_name}"
+        DESTINATION "${config_install_dir}"
+        NAMESPACE "${namespace}")
+
+include(CMakePackageConfigHelpers)
+
+configure_package_config_file(
+    "cmake/Config.cmake.in"
+    "${project_config}"
+    INSTALL_DESTINATION "${config_install_dir}"
+)
+
+install(FILES "${project_config}" DESTINATION "${config_install_dir}")
 
 install(FILES ${MINIZIP_PUBLIC_HEADERS}
   DESTINATION "include/minizip")
 
 option (BUILD_TEST "enabled building of executables minizip and miniunz. Requires ZLIB!" OFF)
 if(BUILD_TEST)
-  add_executable(miniunz_exec miniunz.c minishared.c)
+  add_executable(miniunz_exec miniunz.c)
   target_link_libraries(miniunz_exec minizip)
 
-  add_executable(minizip_exec minizip.c minishared.c)
+  add_executable(minizip_exec minizip.c)
   target_link_libraries(minizip_exec minizip)
 
   install(TARGETS miniunz_exec minizip_exec
           RUNTIME DESTINATION "bin")
 endif()
-
