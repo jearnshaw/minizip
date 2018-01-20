@@ -54,7 +54,6 @@ endif()
 
 # create minizip library
 add_library(minizip ${MINIZIP_SRC} ${MINIZIP_PUBLIC_HEADERS})
-target_link_libraries(minizip ZLIB::ZLIB)
 
 target_link_libraries(minizip PUBLIC ZLIB::zlib)
 
