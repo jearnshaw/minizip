@@ -12,6 +12,12 @@ set(VERSION "4.0.4")
 # API version
 set(SOVERSION "4")
 
+include("cmake/HunterGate.cmake")
+HunterGate(
+    URL "https://github.com/cpp-pm/hunter/archive/v0.25.5.tar.gz"
+    SHA1 "a20151e4c0740ee7d0f9994476856d813cdead29"
+)
+
 project(minizip-ng
     VERSION ${VERSION}
     LANGUAGES C
@@ -101,6 +107,7 @@ set(MINIZIP_LIB)
 set(MINIZIP_LBD)
 set(MINIZIP_DEP)
 set(MINIZIP_DEP_PKG)
+set(MINIZIP_DEP_PKG_CONFIG)
 set(MINIZIP_LFG)
 
 # Initial source files
@@ -173,8 +180,8 @@ endif()
 if(MZ_ZLIB)
     # Check if zlib is present
     if(NOT MZ_FORCE_FETCH_LIBS)
-        find_package(ZLIBNG QUIET)
-        find_package(ZLIB QUIET)
+        hunter_add_package(ZLIB)
+        find_package(ZLIB CONFIG REQUIRED)
         set(ZLIB_VERSION ${ZLIB_VERSION_STRING})
     endif()
 
@@ -190,9 +197,7 @@ if(MZ_ZLIB)
     elseif(ZLIB_FOUND AND NOT MZ_FORCE_FETCH_LIBS)
         message(STATUS "Using ZLIB ${ZLIB_VERSION}")
 
-        list(APPEND MINIZIP_INC ${ZLIB_INCLUDE_DIRS})
-        list(APPEND MINIZIP_LIB ${ZLIB_LIBRARIES})
-        list(APPEND MINIZIP_LBD ${ZLIB_LIBRARY_DIRS})
+        list(APPEND MINIZIP_LIB ZLIB::ZLIB)
 
         set(PC_PRIVATE_DEPS "zlib")
         set(ZLIB_COMPAT ON)
@@ -229,7 +234,9 @@ if(MZ_ZLIB)
         if(ZLIB_COMPAT)
             list(APPEND MINIZIP_DEF -DZLIB_COMPAT)
         endif()
-        if(ZLIBNG_FOUND OR NOT ZLIB_COMPAT)
+        if(TARGET ZLIB::ZLIB)
+            list(APPEND MINIZIP_DEP_PKG_CONFIG ZLIB)
+        elseif(ZLIBNG_FOUND OR NOT ZLIB_COMPAT)
             list(APPEND MINIZIP_DEP_PKG ZLIBNG)
         elseif(ZLIB_FOUND)
             list(APPEND MINIZIP_DEP_PKG ZLIB)
@@ -734,10 +741,13 @@ if(NOT SKIP_INSTALL_LIBRARIES AND NOT SKIP_INSTALL_ALL)
     write_basic_package_version_file(${CMAKE_CURRENT_BINARY_DIR}/${MINIZIP_TARGET}-config-version.cmake
         COMPATIBILITY SameMajorVersion)
     set(MINIZIP_CONFIG_CONTENT "@PACKAGE_INIT@\n")
-    if(MINIZIP_DEP_PKG)
+    if(MINIZIP_DEP_PKG OR MINIZIP_DEP_PKG_CONFIG)
         string(APPEND MINIZIP_CONFIG_CONTENT "include(CMakeFindDependencyMacro)\n")
         foreach(PKG_NAME ${MINIZIP_DEP_PKG})
             string(APPEND MINIZIP_CONFIG_CONTENT "find_dependency(${PKG_NAME} REQUIRED)\n")
+        endforeach()
+        foreach(PKG_NAME ${MINIZIP_DEP_PKG_CONFIG})
+            string(APPEND MINIZIP_CONFIG_CONTENT "find_dependency(${PKG_NAME} CONFIG REQUIRED)\n")
         endforeach()
     endif()
     string(APPEND MINIZIP_CONFIG_CONTENT "include(\"\${CMAKE_CURRENT_LIST_DIR}/${MINIZIP_TARGET}.cmake\")")
